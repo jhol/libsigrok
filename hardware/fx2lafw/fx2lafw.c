@@ -916,6 +916,12 @@ static size_t get_buffer_size(struct dev_context *devc)
 {
 	size_t s;
 
+	if(devc->cur_samplerate <= 0) {
+		sr_err("fx2lafw: cur_samplerate is set to %dHz",
+			devc->cur_samplerate);
+		return 512;
+	}
+
 	/* The buffer should be large enough to hold 10ms of data and a multiple
 	 * of 512. */
 	s = 10 * to_bytes_per_ms(devc->cur_samplerate);

@@ -202,7 +202,7 @@ SR_API int sr_session_load(const char *filename)
  *         upon other errors.
  */
 SR_API int sr_session_save(const char *filename,
-		const struct sr_dev_inst *sdi, struct sr_datastore *ds)
+		const struct sr_dev_inst *sdi, const struct sr_datastore *ds)
 {
 	GSList *l, *d;
 	FILE *meta;
