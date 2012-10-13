@@ -19,6 +19,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <time.h>
 #include <unistd.h>
 #include <zip.h>
 #include <glib.h>
@@ -50,6 +51,12 @@
 
 extern struct sr_session *session;
 extern SR_PRIV struct sr_dev_driver session_driver;
+
+/* Used to store the state during a zip_source_functio operation. */
+struct sr_session_save_state {
+	sr_save_data_callback_t cb;
+	void *cb_data;
+};
 
 /**
  * Load the session from the specified filename.
@@ -190,28 +197,68 @@ SR_API int sr_session_load(const char *filename)
 	return SR_OK;
 }
 
+static int64_t sr_session_save_callback(void *state,
+	void *data, uint64_t len, enum zip_source_cmd cmd)
+{
+	struct sr_session_save_state *s = (struct sr_session_save_state*)state;
+
+	switch(cmd) {
+	case ZIP_SOURCE_OPEN:
+		return s->cb(SR_DS_BEGIN, NULL, 0, s->cb_data);
+
+	case ZIP_SOURCE_READ:
+		return s->cb(SR_DS_READ, data, len, s->cb_data);
+
+	case ZIP_SOURCE_CLOSE:
+		s->cb(SR_DS_END, NULL, 0, s->cb_data);
+		return 0;
+
+	case ZIP_SOURCE_STAT:
+	{
+		struct zip_stat *const stat = data;
+		zip_stat_init(stat);
+		stat->size = 0;
+		stat->mtime = time(NULL);
+		return sizeof(struct zip_stat);
+	}
+
+	case ZIP_SOURCE_ERROR:
+		s->cb(SR_DS_ERROR, NULL, 0, s->cb_data);
+		return 2 * sizeof(int);
+
+	case ZIP_SOURCE_FREE:
+		return 0;
+	}
+
+	sr_err("%s: Unknown cmd code (%d)", __func__, cmd);
+	return -1;
+}
+
 /**
  * Save the current session to the specified file.
  *
  * @param filename The name of the file where to save the current session.
  *                 Must not be NULL.
  * @param sdi The device instance from which the data was captured.
- * @param ds The datastore where the session's captured data was stored.
+ * @param unitsize The size in bytes of the units to store.
+ * @param cb The data source callback function.
+ * @param cb_data Pointer to private data to be passed on.
  *
  * @return SR_OK upon success, SR_ERR_ARG upon invalid arguments, or SR_ERR
  *         upon other errors.
  */
 SR_API int sr_session_save(const char *filename,
-		const struct sr_dev_inst *sdi, const struct sr_datastore *ds)
+	const struct sr_dev_inst *sdi, int unitsize,
+	sr_save_data_callback_t cb, void *cb_data)
 {
-	GSList *l, *d;
+	GSList *l;
 	FILE *meta;
 	struct sr_probe *probe;
 	struct zip *zipfile;
 	struct zip_source *versrc, *metasrc, *logicsrc;
-	int bufcnt, tmpfile, ret, probecnt;
+	int tmpfile, ret, probecnt;
 	uint64_t *samplerate;
-	char version[1], rawname[16], metafile[32], *buf, *s;
+	char version[1], rawname[16], metafile[32], *s;
 
 	if (!filename) {
 		sr_err("%s: filename was NULL", __func__);
@@ -249,7 +296,7 @@ SR_API int sr_session_save(const char *filename,
 
 	/* metadata */
 	fprintf(meta, "capturefile = logic-1\n");
-	fprintf(meta, "unitsize = %d\n", ds->ds_unitsize);
+	fprintf(meta, "unitsize = %d\n", unitsize);
 	fprintf(meta, "total probes = %d\n", g_slist_length(sdi->probes));
 	if (sr_dev_has_hwcap(sdi, SR_HWCAP_SAMPLERATE)) {
 		if (sr_info_get(sdi->driver, SR_DI_CUR_SAMPLERATE,
@@ -271,22 +318,13 @@ SR_API int sr_session_save(const char *filename,
 		}
 	}
 
-	/* dump datastore into logic-n */
-	buf = g_try_malloc(ds->num_units * ds->ds_unitsize +
-		   DATASTORE_CHUNKSIZE);
-	if (!buf) {
-		sr_err("%s: buf malloc failed", __func__);
-		return SR_ERR_MALLOC;
-	}
+	struct sr_session_save_state state = {
+		.cb = cb,
+		.cb_data = cb_data
+	};
 
-	bufcnt = 0;
-	for (d = ds->chunklist; d; d = d->next) {
-		memcpy(buf + bufcnt, d->data,
-			   DATASTORE_CHUNKSIZE);
-		bufcnt += DATASTORE_CHUNKSIZE;
-	}
-	if (!(logicsrc = zip_source_buffer(zipfile, buf,
-			   ds->num_units * ds->ds_unitsize, TRUE)))
+	if (!(logicsrc = zip_source_function(zipfile,
+		sr_session_save_callback, &state)))
 		return SR_ERR;
 	snprintf(rawname, 15, "logic-1");
 	if (zip_add(zipfile, rawname, logicsrc) == -1)

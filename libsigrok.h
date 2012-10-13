@@ -124,6 +124,8 @@ enum {
 #endif
 
 typedef int (*sr_receive_data_callback_t)(int fd, int revents, void *cb_data);
+typedef ssize_t (*sr_save_data_callback_t)(uint16_t type,
+	void *data, size_t len, void *cb_data);
 
 /** Data types used by hardware drivers for dev_config_set(). */
 enum {
@@ -155,6 +157,14 @@ enum {
 	SR_DF_META_ANALOG,
 	SR_DF_FRAME_BEGIN,
 	SR_DF_FRAME_END,
+};
+
+/* sr_save_data_callback_t type values */
+enum {
+	SR_DS_BEGIN,
+	SR_DS_READ,
+	SR_DS_END,
+	SR_DS_ERROR
 };
 
 /** Values for sr_datafeed_analog.mq. */
@@ -338,13 +348,6 @@ struct sr_output_format {
 	GString *(*recv) (struct sr_output *o, const struct sr_dev_inst *sdi,
 			struct sr_datafeed_packet *packet);
 	int (*cleanup) (struct sr_output *o);
-};
-
-struct sr_datastore {
-	/** Size in bytes of the number of units stored in this datastore. */
-	int ds_unitsize;
-	unsigned int num_units; /* TODO: uint64_t */
-	GSList *chunklist;
 };
 
 /*

@@ -43,14 +43,6 @@ SR_API int sr_log_callback_set_default(void);
 SR_API int sr_log_logdomain_set(const char *logdomain);
 SR_API char *sr_log_logdomain_get(void);
 
-/*--- datastore.c -----------------------------------------------------------*/
-
-SR_API int sr_datastore_new(int unitsize, struct sr_datastore **ds);
-SR_API int sr_datastore_destroy(struct sr_datastore *ds);
-SR_API int sr_datastore_put(struct sr_datastore *ds, void *data,
-			    unsigned int length, int in_unitsize,
-			    const int *probelist);
-
 /*--- device.c --------------------------------------------------------------*/
 
 SR_API int sr_dev_probe_name_set(const struct sr_dev_inst *sdi,
@@ -108,7 +100,8 @@ SR_API int sr_session_run(void);
 SR_API int sr_session_halt(void);
 SR_API int sr_session_stop(void);
 SR_API int sr_session_save(const char *filename,
-		const struct sr_dev_inst *sdi, const struct sr_datastore *ds);
+		const struct sr_dev_inst *sdi, int unitsize,
+		sr_save_data_callback_t cb, void *cb_data);
 SR_API int sr_session_source_add(int fd, int events, int timeout,
 		sr_receive_data_callback_t cb, void *cb_data);
 SR_API int sr_session_source_add_pollfd(GPollFD *pollfd, int timeout,
