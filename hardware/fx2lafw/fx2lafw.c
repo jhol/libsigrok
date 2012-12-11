@@ -36,7 +36,8 @@ static const struct fx2lafw_profile supported_fx2[] = {
 	 */
 	{ 0x08a9, 0x0014, "CWAV", "USBee AX", NULL,
 		FIRMWARE_DIR "/fx2lafw-cwav-usbeeax.fw",
-		0 },
+		DEV_CAPS_AX_ANALOG },
+
 	/*
 	 * CWAV USBee DX
 	 * XZL-Studio DX
@@ -95,10 +96,14 @@ static const int32_t hwcaps[] = {
 	SR_CONF_CONTINUOUS,
 };
 
-static const char *probe_names[] = {
+static const char *fx2_probe_names[] = {
 	"0",  "1",  "2",  "3",  "4",  "5",  "6",  "7",
 	"8",  "9", "10", "11", "12", "13", "14", "15",
 	NULL,
+};
+
+static const char *ax_probe_names[] = {
+	"D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7", "A", NULL,
 };
 
 static const uint64_t samplerates[] = {
@@ -366,6 +371,7 @@ static GSList *hw_scan(GSList *options)
 	libusb_device **devlist;
 	int devcnt, num_logic_probes, ret, i, j;
 	const char *conn;
+	const char **probe_names = NULL;
 
 	(void)options;
 
@@ -432,7 +438,18 @@ static GSList *hw_scan(GSList *options)
 		sdi->driver = di;
 
 		/* Fill in probelist according to this device's profile. */
-		num_logic_probes = prof->dev_caps & DEV_CAPS_16BIT ? 16 : 8;
+		if(prof->dev_caps & DEV_CAPS_16BIT)
+			num_logic_probes = 16, num_analog_probes = 0;
+		else if(prof->dev_caps & DEV_CAPS_AX_ANALOG)
+			num_logic_probes = 9;
+		else
+			num_logic_probes = 8, num_analog_probes = 0;
+
+		if(prof->dev_caps & DEV_CAPS_AX_ANALOG)
+			probe_names = ax_probe_names;
+		else
+			probe_names = fx2_probe_names;
+
 		for (j = 0; j < num_logic_probes; j++) {
 			if (!(probe = sr_probe_new(j, SR_PROBE_LOGIC, TRUE,
 					probe_names[j])))

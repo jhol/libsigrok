@@ -52,9 +52,11 @@
 /* Software trigger implementation: positive values indicate trigger stage. */
 #define TRIGGER_FIRED          -1
 
-#define DEV_CAPS_16BIT_POS	0
+#define DEV_CAPS_16BIT_POS		0
+#define DEV_CAPS_AX_ANALOG_POS	1
 
-#define DEV_CAPS_16BIT		(1 << DEV_CAPS_16BIT_POS)
+#define DEV_CAPS_16BIT			(1 << DEV_CAPS_16BIT_POS)
+#define DEV_CAPS_AX_ANALOG		(1 << DEV_CAPS_AX_ANALOG_POS)
 
 struct fx2lafw_profile {
 	uint16_t vid;
