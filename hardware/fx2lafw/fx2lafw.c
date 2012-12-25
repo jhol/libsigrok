@@ -172,16 +172,14 @@ static gboolean check_conf_profile(libusb_device *dev)
 static int fx2lafw_dev_open(struct sr_dev_inst *sdi)
 {
 	libusb_device **devlist;
-	struct sr_usb_dev_inst *usb;
 	struct libusb_device_descriptor des;
-	struct dev_context *devc;
-	struct drv_context *drvc = di->priv;
 	struct version_info vi;
 	int ret, skip, i;
 	uint8_t revid;
 
-	devc = sdi->priv;
-	usb = sdi->conn;
+	const struct dev_context *const devc = sdi->priv;
+	const struct drv_context *const drvc = di->priv;
+	struct sr_usb_dev_inst *const usb = sdi->conn;
 
 	if (sdi->status == SR_ST_ACTIVE)
 		/* Device is already in use. */
@@ -670,7 +668,7 @@ static int config_list(int key, GVariant **data, const struct sr_dev_inst *sdi)
 static int receive_data(int fd, int revents, void *cb_data)
 {
 	struct timeval tv;
-	struct drv_context *drvc = di->priv;
+	const struct drv_context *const drvc = di->priv;
 
 	(void)fd;
 	(void)revents;
@@ -697,8 +695,10 @@ static void abort_acquisition(struct dev_context *devc)
 static void finish_acquisition(struct dev_context *devc)
 {
 	struct sr_datafeed_packet packet;
-	struct drv_context *drvc = di->priv;
 	int i;
+
+	const struct drv_context *const drvc = di->priv;
+
 
 	/* Terminate session. */
 	packet.type = SR_DF_END;
@@ -717,8 +717,9 @@ static void finish_acquisition(struct dev_context *devc)
 
 static void free_transfer(struct libusb_transfer *transfer)
 {
-	struct dev_context *devc = transfer->user_data;
 	unsigned int i;
+
+	struct dev_context *const devc = transfer->user_data;
 
 	g_free(transfer->buffer);
 	transfer->buffer = NULL;
@@ -738,7 +739,7 @@ static void free_transfer(struct libusb_transfer *transfer)
 
 static void resubmit_transfer(struct libusb_transfer *transfer)
 {
-	int ret = libusb_submit_transfer(transfer);
+	const int ret = libusb_submit_transfer(transfer);
 
 	if (LIBUSB_SUCCESS == ret)
 		return;
@@ -754,8 +755,9 @@ static void receive_transfer(struct libusb_transfer *transfer)
 	gboolean packet_has_error = FALSE;
 	struct sr_datafeed_packet packet;
 	struct sr_datafeed_logic logic;
-	struct dev_context *devc = transfer->user_data;
 	int trigger_offset, i;
+
+	struct dev_context *const devc = transfer->user_data;
 
 	/*
 	 * If acquisition has already ended, just free any queued up
@@ -932,17 +934,14 @@ static unsigned int get_timeout(struct dev_context *devc)
 static int hw_dev_acquisition_start(const struct sr_dev_inst *sdi,
 		void *cb_data)
 {
-	struct dev_context *devc;
-	struct drv_context *drvc = di->priv;
-	struct sr_usb_dev_inst *usb;
 	struct libusb_transfer *transfer;
-	const struct libusb_pollfd **lupfd;
 	unsigned int i;
 	int ret;
 	unsigned char *buf;
 
-	devc = sdi->priv;
-	usb = sdi->conn;
+	struct dev_context *const devc = sdi->priv;
+	const struct drv_context *const drvc = di->priv;
+	struct sr_usb_dev_inst *const usb = sdi->conn;
 
 	if (devc->submitted_transfers != 0)
 		return SR_ERR;
@@ -989,7 +988,8 @@ static int hw_dev_acquisition_start(const struct sr_dev_inst *sdi,
 		devc->submitted_transfers++;
 	}
 
-	lupfd = libusb_get_pollfds(drvc->sr_ctx->libusb_ctx);
+	const struct libusb_pollfd **const lupfd =
+		libusb_get_pollfds(drvc->sr_ctx->libusb_ctx);
 	for (i = 0; lupfd[i]; i++)
 		sr_source_add(lupfd[i]->fd, lupfd[i]->events,
 			      timeout, receive_data, NULL);
