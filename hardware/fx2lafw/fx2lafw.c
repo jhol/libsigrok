@@ -18,6 +18,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -767,11 +768,28 @@ static void resubmit_transfer(struct libusb_transfer *transfer)
 	sr_err("%s: %s", __func__, libusb_error_name(ret));
 }
 
+static void la_send_data_proc(struct libusb_transfer *transfer,
+	uint8_t *data, size_t length, size_t sample_width)
+{
+	struct dev_context *const devc = transfer->user_data;
+
+	const struct sr_datafeed_logic logic = {
+		.length = length,
+		.unitsize = sample_width,
+		.data = data
+	};
+
+	const struct sr_datafeed_packet packet = {
+		.type = SR_DF_LOGIC,
+		.payload = &logic
+	};
+
+	sr_session_send(devc->cb_data, &packet);
+}
+
 static void receive_transfer(struct libusb_transfer *transfer)
 {
 	gboolean packet_has_error = FALSE;
-	struct sr_datafeed_packet packet;
-	struct sr_datafeed_logic logic;
 	int trigger_offset, i;
 
 	struct dev_context *const devc = transfer->user_data;
@@ -846,20 +864,21 @@ static void receive_transfer(struct libusb_transfer *transfer)
 					 * TODO: Send pre-trigger buffer to session bus.
 					 * Tell the frontend we hit the trigger here.
 					 */
-					packet.type = SR_DF_TRIGGER;
-					packet.payload = NULL;
+					const struct sr_datafeed_packet packet = {
+						.type = SR_DF_TRIGGER,
+						.payload = NULL
+					};
 					sr_session_send(devc->cb_data, &packet);
 
 					/*
 					 * Send the samples that triggered it,
 					 * since we're skipping past them.
 					 */
-					packet.type = SR_DF_LOGIC;
-					packet.payload = &logic;
-					logic.unitsize = sizeof(*devc->trigger_buffer);
-					logic.length = devc->trigger_stage * logic.unitsize;
-					logic.data = devc->trigger_buffer;
-					sr_session_send(devc->cb_data, &packet);
+					assert(devc->send_data_proc);
+					devc->send_data_proc(transfer,
+						(uint8_t*)devc->trigger_buffer,
+						devc->trigger_stage * sample_width,
+						sample_width);
 
 					devc->trigger_stage = TRIGGER_FIRED;
 					break;
@@ -882,14 +901,15 @@ static void receive_transfer(struct libusb_transfer *transfer)
 	}
 
 	if (devc->trigger_stage == TRIGGER_FIRED) {
+
 		/* Send the incoming transfer to the session bus. */
+		assert(devc->send_data_proc);
+
 		const int trigger_offset_bytes = trigger_offset * sample_width;
-		packet.type = SR_DF_LOGIC;
-		packet.payload = &logic;
-		logic.length = transfer->actual_length - trigger_offset_bytes;
-		logic.unitsize = sample_width;
-		logic.data = cur_buf + trigger_offset_bytes;
-		sr_session_send(devc->cb_data, &packet);
+		devc->send_data_proc(transfer,
+			transfer->buffer + trigger_offset_bytes,
+			transfer->actual_length - trigger_offset_bytes,
+			sample_width);
 
 		devc->num_samples += cur_sample_count;
 		if (devc->limit_samples &&
@@ -1011,6 +1031,9 @@ static int hw_dev_acquisition_start(const struct sr_dev_inst *sdi,
 		sr_source_add(lupfd[i]->fd, lupfd[i]->events,
 			      timeout, receive_data, NULL);
 	free(lupfd); /* NOT g_free()! */
+
+	/* Select send_data_proc */
+	devc->send_data_proc = la_send_data_proc;
 
 	/* Send header packet to the session bus. */
 	std_session_send_df_header(cb_data, DRIVER_LOG_DOMAIN);
