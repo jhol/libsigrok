@@ -370,7 +370,8 @@ static GSList *hw_scan(GSList *options)
 	GSList *l, *devices, *conn_devices;
 	struct libusb_device_descriptor des;
 	libusb_device **devlist;
-	int devcnt, num_logic_probes, ret, i, j;
+	int devcnt, ret, i, j, index;
+	int num_logic_probes = 0, num_analog_probes = 0;
 	const char *conn;
 	const char **probe_names = NULL;
 
@@ -442,7 +443,7 @@ static GSList *hw_scan(GSList *options)
 		if(prof->dev_caps & DEV_CAPS_16BIT)
 			num_logic_probes = 16, num_analog_probes = 0;
 		else if(prof->dev_caps & DEV_CAPS_AX_ANALOG)
-			num_logic_probes = 9;
+			num_logic_probes = 8, num_analog_probes = 1;
 		else
 			num_logic_probes = 8, num_analog_probes = 0;
 
@@ -451,9 +452,16 @@ static GSList *hw_scan(GSList *options)
 		else
 			probe_names = fx2_probe_names;
 
-		for (j = 0; j < num_logic_probes; j++) {
-			if (!(probe = sr_probe_new(j, SR_PROBE_LOGIC, TRUE,
-					probe_names[j])))
+		for (j = 0, index = 0; j < num_logic_probes; j++, index++) {
+			if (!(probe = sr_probe_new(index, SR_PROBE_LOGIC,
+				TRUE, probe_names[index])))
+				return NULL;
+			sdi->probes = g_slist_append(sdi->probes, probe);
+		}
+
+		for (j = 0; j < num_analog_probes; j++, index++) {
+			if (!(probe = sr_probe_new(index, SR_PROBE_ANALOG,
+				TRUE, probe_names[index])))
 				return NULL;
 			sdi->probes = g_slist_append(sdi->probes, probe);
 		}
@@ -731,6 +739,10 @@ static void finish_acquisition(struct dev_context *devc)
 
 	devc->num_transfers = 0;
 	g_free(devc->transfers);
+
+	/* Free the deinterlace buffers if we had them */
+	g_free(devc->logic_buffer);
+	g_free(devc->analog_buffer);
 }
 
 static void free_transfer(struct libusb_transfer *transfer)
@@ -787,6 +799,54 @@ static void la_send_data_proc(struct libusb_transfer *transfer,
 	sr_session_send(devc->cb_data, &packet);
 }
 
+static void mso_send_data_proc(struct libusb_transfer *transfer,
+	uint8_t *data, size_t length, size_t sample_width)
+{
+	(void)(sample_width);	/* Unused */
+
+	size_t i;
+
+	struct dev_context *const devc = transfer->user_data;
+
+	length /= 2;
+
+	/* Send the logic */
+	for(i = 0; i < length; i++)
+		devc->logic_buffer[i] = data[i * 2];
+
+	const struct sr_datafeed_logic logic = {
+		.length = length,
+		.unitsize = 1,
+		.data = devc->logic_buffer
+	};
+
+	const struct sr_datafeed_packet logic_packet = {
+		.type = SR_DF_LOGIC,
+		.payload = &logic
+	};
+
+	sr_session_send(devc->cb_data, &logic_packet);
+
+	/* Send the analog */
+	for(i = 0; i < length; i++)
+		devc->analog_buffer[i] = data[i * 2 + 1] - 128.0f;
+
+	const struct sr_datafeed_analog analog = {
+		.num_samples = length,
+		.mq = SR_MQ_VOLTAGE,
+		.unit = SR_UNIT_VOLT,
+		.mqflags = SR_MQFLAG_DC,
+		.data = devc->analog_buffer
+	};
+
+	const struct sr_datafeed_packet analog_packet = {
+		.type = SR_DF_ANALOG,
+		.payload = &analog
+	};
+
+	sr_session_send(devc->cb_data, &analog_packet);
+}
+
 static void receive_transfer(struct libusb_transfer *transfer)
 {
 	gboolean packet_has_error = FALSE;
@@ -808,7 +868,7 @@ static void receive_transfer(struct libusb_transfer *transfer)
 
 	/* Save incoming transfer before reusing the transfer struct. */
 	uint8_t *const cur_buf = transfer->buffer;
-	const int sample_width = devc->sample_wide ? 2 : 1;
+	const size_t sample_width = devc->sample_wide ? 2 : 1;
 	const int cur_sample_count = transfer->actual_length / sample_width;
 
 	switch (transfer->status) {
@@ -1033,12 +1093,26 @@ static int hw_dev_acquisition_start(const struct sr_dev_inst *sdi,
 	free(lupfd); /* NOT g_free()! */
 
 	/* Select send_data_proc */
-	devc->send_data_proc = la_send_data_proc;
+	if(devc->sample_wide &&
+		!(devc->profile->dev_caps & DEV_CAPS_AX_ANALOG))
+		devc->send_data_proc = la_send_data_proc;
+	else
+		devc->send_data_proc = mso_send_data_proc;
 
 	/* Send header packet to the session bus. */
 	std_session_send_df_header(cb_data, DRIVER_LOG_DOMAIN);
 
-	if ((ret = command_start_acquisition (usb->devhdl,
+	/* Prepare for analog sampling */
+	if(devc->sample_wide &&
+		(devc->profile->dev_caps & DEV_CAPS_AX_ANALOG)) {
+		/* We need a buffer half the size of a transfer */
+		devc->logic_buffer = g_try_malloc(size / 2);
+		devc->analog_buffer = g_try_malloc(
+			sizeof(float) * size / 2);
+	}
+
+	/* Begin acquisition */
+	if ((ret = command_start_acquisition(usb->devhdl,
 		devc->cur_samplerate, devc->sample_wide)) != SR_OK) {
 		abort_acquisition(devc);
 		return ret;

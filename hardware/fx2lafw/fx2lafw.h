@@ -102,6 +102,9 @@ struct dev_context {
 	unsigned int num_transfers;
 	struct libusb_transfer **transfers;
 
+	uint8_t *logic_buffer;
+	float *analog_buffer;
+
 	void (*send_data_proc)(struct libusb_transfer *transfer,
 		uint8_t *data, size_t length, size_t sample_width);
 };
