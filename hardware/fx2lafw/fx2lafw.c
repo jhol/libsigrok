@@ -1093,11 +1093,11 @@ static int hw_dev_acquisition_start(const struct sr_dev_inst *sdi,
 	free(lupfd); /* NOT g_free()! */
 
 	/* Select send_data_proc */
-	if(devc->sample_wide &&
-		!(devc->profile->dev_caps & DEV_CAPS_AX_ANALOG))
-		devc->send_data_proc = la_send_data_proc;
-	else
+	if (devc->sample_wide &&
+		(devc->profile->dev_caps & DEV_CAPS_AX_ANALOG))
 		devc->send_data_proc = mso_send_data_proc;
+	else
+		devc->send_data_proc = la_send_data_proc;
 
 	/* Send header packet to the session bus. */
 	std_session_send_df_header(cb_data, DRIVER_LOG_DOMAIN);
