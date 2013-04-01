@@ -677,6 +677,8 @@ static void abort_acquisition(struct dev_context *devc)
 		if (devc->transfers[i])
 			libusb_cancel_transfer(devc->transfers[i]);
 	}
+
+	devc->submitted_transfers = 0;
 }
 
 static void finish_acquisition(struct dev_context *devc)
