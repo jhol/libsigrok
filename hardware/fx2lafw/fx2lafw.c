@@ -937,8 +937,10 @@ static int hw_dev_acquisition_start(const struct sr_dev_inst *sdi,
 	drvc = di->priv;
 	devc = sdi->priv;
 
-	if (devc->submitted_transfers != 0)
+	if (devc->submitted_transfers != 0) {
+		sr_err("Transfers are still pending.");
 		return SR_ERR;
+	}
 
 	if (configure_probes(sdi) != SR_OK) {
 		sr_err("Failed to configure probes.");
@@ -993,6 +995,7 @@ static int hw_dev_acquisition_start(const struct sr_dev_inst *sdi,
 
 	if ((ret = command_start_acquisition(devc->usb->devhdl,
 		devc->cur_samplerate, devc->sample_wide)) != SR_OK) {
+		sr_err("Failed to send START command");
 		abort_acquisition(devc);
 		return ret;
 	}
