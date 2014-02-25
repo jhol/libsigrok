@@ -204,6 +204,11 @@ static int dev_close(struct sr_dev_inst *sdi)
 	return SR_OK;
 }
 
+static int dev_clear()
+{
+	return cleanup();
+}
+
 static int config_get(int id, GVariant **data, const struct sr_dev_inst *sdi,
 		const struct sr_probe_group *probe_group)
 {
@@ -313,7 +318,7 @@ SR_PRIV struct sr_dev_driver session_driver = {
 	.cleanup = cleanup,
 	.scan = NULL,
 	.dev_list = NULL,
-	.dev_clear = NULL,
+	.dev_clear = dev_clear,
 	.config_get = config_get,
 	.config_set = config_set,
 	.config_list = config_list,
