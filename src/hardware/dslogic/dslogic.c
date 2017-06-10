@@ -323,22 +323,22 @@ SR_PRIV int dslogic_fpga_configure(const struct sr_dev_inst *sdi)
 
 	v16 = 0x0000;
 
-	if (devc->dslogic_mode == DS_OP_INTERNAL_TEST)
+	if (devc->mode == DS_OP_INTERNAL_TEST)
 		v16 = DS_MODE_INT_TEST;
-	else if (devc->dslogic_mode == DS_OP_EXTERNAL_TEST)
+	else if (devc->mode == DS_OP_EXTERNAL_TEST)
 		v16 = DS_MODE_EXT_TEST;
-	else if (devc->dslogic_mode == DS_OP_LOOPBACK_TEST)
+	else if (devc->mode == DS_OP_LOOPBACK_TEST)
 		v16 = DS_MODE_LPB_TEST;
-	if (devc->dslogic_continuous_mode)
+	if (devc->continuous_mode)
 		v16 |= DS_MODE_STREAM_MODE;
-	if (devc->dslogic_external_clock) {
+	if (devc->external_clock) {
 		v16 |= DS_MODE_CLK_TYPE;
-		if (devc->dslogic_clock_edge == DS_EDGE_FALLING)
+		if (devc->clock_edge == DS_EDGE_FALLING)
 			v16 |= DS_MODE_CLK_EDGE;
 	}
 	if (devc->limit_samples > DS_MAX_LOGIC_DEPTH *
 		ceil(devc->cur_samplerate * 1.0 / DS_MAX_LOGIC_SAMPLERATE)
-		&& !devc->dslogic_continuous_mode) {
+		&& !devc->continuous_mode) {
 		/* Enable RLE for long captures.
 		 * Without this, captured data present errors.
 		 */

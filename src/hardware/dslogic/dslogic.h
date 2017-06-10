@@ -18,8 +18,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef LIBSIGROK_HARDWARE_FX2LAFW_DSLOGIC_H
-#define LIBSIGROK_HARDWARE_FX2LAFW_DSLOGIC_H
+#ifndef LIBSIGROK_HARDWARE_DSLOGIC_DSLOGIC_H
+#define LIBSIGROK_HARDWARE_DSLOGIC_DSLOGIC_H
 
 /* Modified protocol commands & flags used by DSLogic */
 #define DS_CMD_GET_FW_VERSION		0xb0
