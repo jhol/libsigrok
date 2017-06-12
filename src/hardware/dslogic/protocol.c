@@ -198,7 +198,6 @@ SR_PRIV struct dev_context *dslogic_dev_new(void)
 	devc->cur_samplerate = 0;
 	devc->limit_samples = 0;
 	devc->capture_ratio = 0;
-	devc->sample_wide = FALSE;
 	devc->continuous_mode = FALSE;
 	devc->clock_edge = DS_EDGE_RISING;
 
@@ -292,7 +291,8 @@ SR_PRIV void LIBUSB_CALL dslogic_receive_transfer(struct libusb_transfer *transf
 	gboolean packet_has_error = FALSE;
 	struct sr_datafeed_packet packet;
 	unsigned int num_samples;
-	int trigger_offset, cur_sample_count, unitsize;
+	int trigger_offset, cur_sample_count;
+	const int unitsize = 2;
 
 	sdi = transfer->user_data;
 	devc = sdi->priv;
@@ -310,7 +310,6 @@ SR_PRIV void LIBUSB_CALL dslogic_receive_transfer(struct libusb_transfer *transf
 		libusb_error_name(transfer->status), transfer->actual_length);
 
 	/* Save incoming transfer before reusing the transfer struct. */
-	unitsize = devc->sample_wide ? 2 : 1;
 	cur_sample_count = transfer->actual_length / unitsize;
 
 	switch (transfer->status) {

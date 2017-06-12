@@ -95,7 +95,6 @@ struct dev_context {
 	/* Operational settings */
 	gboolean trigger_fired;
 	gboolean acq_aborted;
-	gboolean sample_wide;
 
 	unsigned int sent_samples;
 	int submitted_transfers;

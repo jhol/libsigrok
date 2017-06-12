@@ -153,16 +153,12 @@ SR_PRIV int dslogic_fpga_firmware_upload(const struct sr_dev_inst *sdi)
 
 SR_PRIV int dslogic_start_acquisition(const struct sr_dev_inst *sdi)
 {
-	struct dev_context *devc;
 	struct sr_usb_dev_inst *usb;
 	struct dslogic_mode mode;
 	int ret;
 
-	devc = sdi->priv;
-	mode.flags = DS_START_FLAGS_MODE_LA;
+	mode.flags = DS_START_FLAGS_MODE_LA | DS_START_FLAGS_SAMPLE_WIDE;
 	mode.sample_delay_h = mode.sample_delay_l = 0;
-	if (devc->sample_wide)
-		mode.flags |= DS_START_FLAGS_SAMPLE_WIDE;
 
 	usb = sdi->conn;
 	ret = libusb_control_transfer(usb->devhdl, LIBUSB_REQUEST_TYPE_VENDOR |
@@ -386,9 +382,8 @@ SR_PRIV int dslogic_fpga_configure(const struct sr_dev_inst *sdi)
 static int to_bytes_per_ms(struct dev_context *devc)
 {
 	if (devc->cur_samplerate > SR_MHZ(100))
-		return SR_MHZ(100) / 1000 * (devc->sample_wide ? 2 : 1);
-
-	return devc->cur_samplerate / 1000 * (devc->sample_wide ? 2 : 1);
+		return SR_MHZ(100) / 1000 * 2;
+	return devc->cur_samplerate / 1000 * 2;
 }
 
 static size_t get_buffer_size(struct dev_context *devc)

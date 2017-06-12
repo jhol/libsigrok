@@ -801,13 +801,6 @@ static int configure_channels(const struct sr_dev_inst *sdi)
 		}
 	}
 
-	/*
-	 * Use wide sampling if either any of the LA channels 8..15 is enabled,
-	 * and/or at least one analog channel is enabled, and/or the device
-	 * is running DSLogic firmware (not dslogic).
-	 */
-	devc->sample_wide = 1;
-
 	return SR_OK;
 }
 
